@@ -1,6 +1,8 @@
 package app.olauncher.ui
 
 import android.app.admin.DevicePolicyManager
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
 import android.content.Intent
 import android.content.pm.LauncherApps
@@ -8,12 +10,14 @@ import android.content.res.Configuration
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.RequiresApi
@@ -24,6 +28,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
+import app.olauncher.MainActivity
 import app.olauncher.MainViewModel
 import app.olauncher.R
 import app.olauncher.data.AppModel
@@ -58,6 +63,8 @@ class HomeFragment : Fragment(), View.OnClickListener, View.OnLongClickListener 
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
 
+    private val mainActivity get() = requireActivity() as MainActivity
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
         return binding.root
@@ -81,6 +88,7 @@ class HomeFragment : Fragment(), View.OnClickListener, View.OnLongClickListener 
     override fun onResume() {
         super.onResume()
         populateHomeScreen(false)
+        loadWidgets()
         viewModel.isOlauncherDefault()
         if (prefs.showStatusBar) showStatusBar()
         else hideStatusBar()
@@ -196,6 +204,9 @@ class HomeFragment : Fragment(), View.OnClickListener, View.OnLongClickListener 
         }
         viewModel.screenTimeValue.observe(viewLifecycleOwner) {
             it?.let { binding.tvScreenTime.text = it }
+        }
+        viewModel.widgetListUpdated.observe(viewLifecycleOwner) {
+            loadWidgets()
         }
     }
 
@@ -677,6 +688,63 @@ class HomeFragment : Fragment(), View.OnClickListener, View.OnLongClickListener 
                 textOnClick(view)
             }
         }
+    }
+
+    private fun loadWidgets() {
+        binding.widgetContainer.removeAllViews()
+        val widgetIds = prefs.widgetIds
+        if (widgetIds.isEmpty()) {
+            binding.widgetContainer.visibility = View.GONE
+            return
+        }
+
+        val appWidgetManager = AppWidgetManager.getInstance(requireContext())
+        var hasValidWidget = false
+
+        for (idStr in widgetIds) {
+            val widgetId = idStr.toIntOrNull() ?: continue
+            val providerInfo = appWidgetManager.getAppWidgetInfo(widgetId)
+            if (providerInfo == null) {
+                prefs.removeWidgetId(widgetId)
+                continue
+            }
+
+            addWidgetView(widgetId, providerInfo)
+            hasValidWidget = true
+        }
+
+        binding.widgetContainer.visibility = if (hasValidWidget) View.VISIBLE else View.GONE
+    }
+
+    private fun addWidgetView(widgetId: Int, providerInfo: AppWidgetProviderInfo) {
+        val widgetView = mainActivity.appWidgetHost.createView(
+            requireContext().applicationContext,
+            widgetId,
+            providerInfo
+        )
+
+        val heightPx = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            providerInfo.minHeight.toFloat(),
+            resources.displayMetrics
+        ).toInt().coerceAtLeast(100.dpToPx())
+
+        widgetView.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            heightPx
+        ).apply {
+            bottomMargin = 8.dpToPx()
+        }
+
+        widgetView.setOnLongClickListener {
+            prefs.removeWidgetId(widgetId)
+            mainActivity.appWidgetHost.deleteAppWidgetId(widgetId)
+            requireContext().showToast(getString(R.string.widget_removed))
+            loadWidgets()
+            true
+        }
+
+        binding.widgetContainer.addView(widgetView)
     }
 
     override fun onDestroyView() {

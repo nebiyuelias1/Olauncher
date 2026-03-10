@@ -1,6 +1,8 @@
 package app.olauncher.ui
 
+import android.app.Activity
 import android.app.admin.DevicePolicyManager
+import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -14,6 +16,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.bundleOf
 import androidx.core.view.isVisible
@@ -21,6 +24,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
 import app.olauncher.BuildConfig
+import app.olauncher.MainActivity
 import app.olauncher.MainViewModel
 import app.olauncher.R
 import app.olauncher.data.Constants
@@ -51,6 +55,66 @@ class SettingsFragment : Fragment(), View.OnClickListener, View.OnLongClickListe
 
     private var _binding: FragmentSettingsBinding? = null
     private val binding get() = _binding!!
+
+    private val mainActivity get() = requireActivity() as MainActivity
+    private var pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+
+    private val configureWidgetLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val widgetId = pendingWidgetId
+        pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+        if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            finalizeWidgetAdd(widgetId)
+        }
+    }
+
+    private val bindWidgetLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val widgetId = pendingWidgetId
+        if (result.resultCode == Activity.RESULT_OK && widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            configureOrFinalizeWidget(widgetId)
+        } else {
+            releaseWidget(widgetId)
+            pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+        }
+    }
+
+    private val pickWidgetLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val widgetId = result.data?.getIntExtra(
+                AppWidgetManager.EXTRA_APPWIDGET_ID,
+                AppWidgetManager.INVALID_APPWIDGET_ID
+            ) ?: AppWidgetManager.INVALID_APPWIDGET_ID
+
+            if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                pendingWidgetId = widgetId
+                val appWidgetManager = AppWidgetManager.getInstance(requireContext())
+                val providerInfo = appWidgetManager.getAppWidgetInfo(widgetId)
+
+                if (providerInfo != null) {
+                    val bound = appWidgetManager.bindAppWidgetIdIfAllowed(widgetId, providerInfo.provider)
+                    if (bound) {
+                        configureOrFinalizeWidget(widgetId)
+                    } else {
+                        val bindIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND).apply {
+                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, providerInfo.provider)
+                        }
+                        bindWidgetLauncher.launch(bindIntent)
+                    }
+                } else {
+                    finalizeWidgetAdd(widgetId)
+                }
+            }
+        } else {
+            releaseWidget(pendingWidgetId)
+            pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+        }
+    }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentSettingsBinding.inflate(inflater, container, false)
@@ -110,6 +174,7 @@ class SettingsFragment : Fragment(), View.OnClickListener, View.OnLongClickListe
             R.id.toggleLock -> toggleLockMode()
             R.id.autoShowKeyboard -> toggleKeyboardText()
             R.id.homeAppsNum -> binding.appsNumSelectLayout.visibility = View.VISIBLE
+            R.id.addWidget -> startWidgetPicker()
             R.id.dailyWallpaperUrl -> requireContext().openUrl(prefs.dailyWallpaperUrl)
             R.id.dailyWallpaper -> toggleDailyWallpaperUpdate()
             R.id.alignment -> binding.alignmentSelectLayout.visibility = View.VISIBLE
@@ -201,6 +266,7 @@ class SettingsFragment : Fragment(), View.OnClickListener, View.OnLongClickListe
         binding.autoShowKeyboard.setOnClickListener(this)
         binding.toggleLock.setOnClickListener(this)
         binding.homeAppsNum.setOnClickListener(this)
+        binding.addWidget.setOnClickListener(this)
         binding.screenTimeOnOff.setOnClickListener(this)
         binding.dailyWallpaperUrl.setOnClickListener(this)
         binding.dailyWallpaper.setOnClickListener(this)
@@ -272,6 +338,43 @@ class SettingsFragment : Fragment(), View.OnClickListener, View.OnLongClickListe
         }
         viewModel.updateSwipeApps.observe(viewLifecycleOwner) {
             populateSwipeApps()
+        }
+    }
+
+    private fun startWidgetPicker() {
+        val newWidgetId = mainActivity.appWidgetHost.allocateAppWidgetId()
+        pendingWidgetId = newWidgetId
+        val pickIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, newWidgetId)
+        }
+        pickWidgetLauncher.launch(pickIntent)
+    }
+
+    private fun configureOrFinalizeWidget(widgetId: Int) {
+        val appWidgetManager = AppWidgetManager.getInstance(requireContext())
+        val providerInfo = appWidgetManager.getAppWidgetInfo(widgetId)
+        val configureComponent = providerInfo?.configure
+        if (configureComponent != null) {
+            val configIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
+                component = configureComponent
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+            }
+            configureWidgetLauncher.launch(configIntent)
+        } else {
+            pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+            finalizeWidgetAdd(widgetId)
+        }
+    }
+
+    private fun finalizeWidgetAdd(widgetId: Int) {
+        prefs.addWidgetId(widgetId)
+        viewModel.widgetListUpdated.call()
+        requireContext().showToast(getString(R.string.widget_added))
+    }
+
+    private fun releaseWidget(widgetId: Int) {
+        if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            mainActivity.appWidgetHost.deleteAppWidgetId(widgetId)
         }
     }
 

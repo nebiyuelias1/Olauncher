@@ -113,6 +113,8 @@ class Prefs(context: Context) {
     private val SHORTCUT_ID_SWIPE_RIGHT = "SHORTCUT_ID_SWIPE_RIGHT"
     private val IS_SHORTCUT_SWIPE_RIGHT = "IS_SHORTCUT_SWIPE_RIGHT"
 
+    private val WIDGET_IDS = "WIDGET_IDS"
+
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_FILENAME, 0)
 
     var firstOpen: Boolean
@@ -584,4 +586,16 @@ class Prefs(context: Context) {
     fun getAppRenameLabel(appPackage: String): String = prefs.getString(appPackage, "").toString()
 
     fun setAppRenameLabel(appPackage: String, renameLabel: String) = prefs.edit().putString(appPackage, renameLabel).apply()
+
+    var widgetIds: Set<String>
+        get() = prefs.getStringSet(WIDGET_IDS, emptySet()) ?: emptySet()
+        set(value) = prefs.edit { putStringSet(WIDGET_IDS, value) }
+
+    fun addWidgetId(id: Int) {
+        widgetIds = widgetIds.toMutableSet().also { it.add(id.toString()) }
+    }
+
+    fun removeWidgetId(id: Int) {
+        widgetIds = widgetIds.toMutableSet().also { it.remove(id.toString()) }
+    }
 }

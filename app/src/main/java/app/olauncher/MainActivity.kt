@@ -2,6 +2,8 @@ package app.olauncher
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.appwidget.AppWidgetHost
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -51,6 +53,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private var timerJob: Job? = null
 
+    lateinit var appWidgetHost: AppWidgetHost
+    lateinit var appWidgetManager: AppWidgetManager
+
 //    override fun onBackPressed() {
 //        if (navController.currentDestination?.id != R.id.mainFragment)
 //            super.onBackPressed()
@@ -70,6 +75,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        appWidgetManager = AppWidgetManager.getInstance(this)
+        appWidgetHost = AppWidgetHost(this, Constants.APP_WIDGET_HOST_ID)
 
         navController = this.findNavController(R.id.nav_host_fragment)
         viewModel = ViewModelProvider(this)[MainViewModel::class.java]
@@ -108,10 +116,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        appWidgetHost.startListening()
         restartLauncherOrCheckTheme()
     }
 
     override fun onStop() {
+        appWidgetHost.stopListening()
         backToHomeScreen()
         super.onStop()
     }
