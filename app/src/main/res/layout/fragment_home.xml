@@ -75,6 +75,15 @@
         android:paddingTop="112dp"
         android:paddingBottom="48dp">
 
+        <!-- Widget area: populated dynamically from stored widget IDs -->
+        <LinearLayout
+            android:id="@+id/widgetContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="8dp"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/homeApp1"
             style="@style/TextLarge"

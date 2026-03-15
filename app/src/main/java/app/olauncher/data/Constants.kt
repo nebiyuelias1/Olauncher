@@ -85,6 +85,11 @@ object Constants {
     const val REQUEST_CODE_ENABLE_ADMIN = 666
     const val REQUEST_CODE_LAUNCHER_SELECTOR = 678
 
+    const val APP_WIDGET_HOST_ID = 1024
+    const val REQUEST_CODE_WIDGET_PICK = 500
+    const val REQUEST_CODE_WIDGET_BIND = 501
+    const val REQUEST_CODE_WIDGET_CONFIGURE = 502
+
     const val HINT_RATE_US = 15
 
     const val LONG_PRESS_DELAY_MS = 500L
