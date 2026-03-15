@@ -1,5 +1,6 @@
 package app.olauncher.helper
 
+import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.content.pm.LauncherApps
@@ -13,6 +14,7 @@ class PinItemActivity : AppCompatActivity() {
 
     private var pendingPinRequest: LauncherApps.PinItemRequest? = null
     private var pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+    private val appWidgetHost by lazy { AppWidgetHost(this, Constants.APP_WIDGET_HOST_ID) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,7 +73,7 @@ class PinItemActivity : AppCompatActivity() {
 
         pendingPinRequest = pinItemRequest
         val appWidgetManager = AppWidgetManager.getInstance(this)
-        val newWidgetId = appWidgetManager.allocateAppWidgetId()
+        val newWidgetId = appWidgetHost.allocateAppWidgetId()
         pendingWidgetId = newWidgetId
 
         val bound = appWidgetManager.bindAppWidgetIdIfAllowed(newWidgetId, providerInfo.provider)

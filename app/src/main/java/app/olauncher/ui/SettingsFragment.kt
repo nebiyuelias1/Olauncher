@@ -90,25 +90,27 @@ class SettingsFragment : Fragment(), View.OnClickListener, View.OnLongClickListe
                 AppWidgetManager.INVALID_APPWIDGET_ID
             ) ?: AppWidgetManager.INVALID_APPWIDGET_ID
 
-            if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            @Suppress("DEPRECATION")
+            val provider = result.data?.getParcelableExtra<ComponentName>(
+                AppWidgetManager.EXTRA_APPWIDGET_PROVIDER
+            )
+
+            if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID && provider != null) {
                 pendingWidgetId = widgetId
                 val appWidgetManager = AppWidgetManager.getInstance(requireContext())
-                val providerInfo = appWidgetManager.getAppWidgetInfo(widgetId)
-
-                if (providerInfo != null) {
-                    val bound = appWidgetManager.bindAppWidgetIdIfAllowed(widgetId, providerInfo.provider)
-                    if (bound) {
-                        configureOrFinalizeWidget(widgetId)
-                    } else {
-                        val bindIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND).apply {
-                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
-                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, providerInfo.provider)
-                        }
-                        bindWidgetLauncher.launch(bindIntent)
-                    }
+                val bound = appWidgetManager.bindAppWidgetIdIfAllowed(widgetId, provider)
+                if (bound) {
+                    configureOrFinalizeWidget(widgetId)
                 } else {
-                    finalizeWidgetAdd(widgetId)
+                    val bindIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND).apply {
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, provider)
+                    }
+                    bindWidgetLauncher.launch(bindIntent)
                 }
+            } else {
+                releaseWidget(pendingWidgetId)
+                pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
             }
         } else {
             releaseWidget(pendingWidgetId)
